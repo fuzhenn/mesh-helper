@@ -1,0 +1,1 @@
+export { MaptalksTilerPlugin } from "./MaptalksTilerPlugin";
