@@ -31,8 +31,11 @@ export function queryFeatureFromIntersection(hit: Intersection): FeatureInfo {
     const { object, face, point, faceIndex } = hit;
     const { meshFeatures, structuralMetadata } = object.userData;
 
+    console.log(object.userData.tileURI);
+
     // Check if the object is a Mesh type
-    if (!(object instanceof Mesh)) {
+    // if (!(object instanceof Mesh)) {
+    if (object.type !== "Mesh") {
       result.error = "Hit object is not a Mesh";
       return result;
     }
@@ -47,8 +50,9 @@ export function queryFeatureFromIntersection(hit: Intersection): FeatureInfo {
     const barycoord = new Vector3();
     if (face && point) {
       const triangle = new Triangle();
+      const mesh = object as Mesh;
       triangle.setFromAttributeAndIndices(
-        object.geometry.attributes.position,
+        mesh.geometry.attributes.position,
         face.a,
         face.b,
         face.c
@@ -99,9 +103,8 @@ export function queryFeatureFromIntersection(hit: Intersection): FeatureInfo {
 
     return result;
   } catch (error) {
-    result.error = `Error extracting OID: ${
-      error instanceof Error ? error.message : String(error)
-    }`;
+    result.error = `Error extracting OID: ${error instanceof Error ? error.message : String(error)
+      }`;
     return result;
   }
 }

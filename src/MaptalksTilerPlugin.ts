@@ -15,23 +15,33 @@ import {
   queryFeatureFromIntersection,
 } from "./utils";
 
-import { TilesRenderer } from "3d-tiles-renderer";
+import { TilesRenderer, Tile, TilesRendererEventMap } from "3d-tiles-renderer";
 
-interface TileWithCache {
-  cached?: {
-    scene: Object3D;
-  };
+interface Cached {
+  scene: Object3D;
 }
 
-export class MaptalksTilerPlugin {
-  tiles: TilesRenderer | null = null;
-  renderer: WebGLRenderer;
-  oids: number[] = [];
+interface TileEx extends Tile {
+  cached?: Cached;
+}
+
+interface TilesRendererPlugin {
+  name: string;
+  init?: (tiles: TilesRenderer) => void;
+  dispose?: () => void;
+}
+
+export class MaptalksTilerPlugin implements TilesRendererPlugin {
+  name: string;
+  private tiles?: TilesRenderer = undefined;
+  private renderer: WebGLRenderer;
   private splitMeshCache: Map<string, Mesh[]> = new Map();
   private maxUniformVectors: number = 1024;
   private featureIdCount: number = 32;
+  oids: number[] = [];
 
   constructor(params: { renderer: WebGLRenderer }) {
+    this.name = "MAPTALKS_TILER_PLUGIN";
     this.renderer = params.renderer;
   }
 
@@ -43,10 +53,11 @@ export class MaptalksTilerPlugin {
     tiles.addEventListener("load-model", this._onLoadModelCB);
 
     // initialize an already-loaded tiles
-    tiles.traverse((tile) => {
-      const tileWithCache = tile as TileWithCache;
-      if (tileWithCache.cached?.scene) {
-        this._onLoadModel(tileWithCache.cached.scene);
+    tiles.traverse((tileObj) => {
+      const tile = tileObj as Tile;
+      const tileEx = tileObj as TileEx;
+      if (tileEx.cached?.scene) {
+        this._onLoadModel(tileEx.cached.scene, tile);
       }
       return true;
     }, null);
@@ -54,21 +65,26 @@ export class MaptalksTilerPlugin {
 
   /**
    * Load model callback
+   * @internal
    * @param scene Scene
    */
-  _onLoadModelCB = ({ scene }: { scene: Object3D }) => {
-    this._onLoadModel(scene);
+  _onLoadModelCB = ({ scene, tile }: TilesRendererEventMap["load-model"]) => {
+    this._onLoadModel(scene, tile);
   };
 
   /**
    * Load model
+   * @internal
    * @param scene Scene
    */
-  _onLoadModel(scene: Object3D) {
+  _onLoadModel(scene: Object3D, tile: Tile) {
     this.splitMeshCache.clear();
 
     buildOidToFeatureIdMap(scene);
     scene.traverse((c) => {
+      if (tile.content?.uri) {
+        c.userData.tileURI = tile.content.uri;
+      }
       if ((c as Mesh).material) {
         this._setupMaterial(c as Mesh);
       }
@@ -77,6 +93,7 @@ export class MaptalksTilerPlugin {
 
   /**
    * Update the WebGL limits
+   * @internal
    */
   _updateWebGLLimits() {
     const gl = this.renderer.getContext();
@@ -87,6 +104,7 @@ export class MaptalksTilerPlugin {
   /**
    * Dynamically calculate FEATURE_ID_COUNT
    * Determine the most appropriate array size based on WebGL's MAX_FRAGMENT_UNIFORM_VECTORS limit and current oid array length
+   * @internal
    * @returns The calculated FEATURE_ID_COUNT value
    * @throws Error When the required featureIdCount exceeds WebGL limits
    */
@@ -116,6 +134,7 @@ export class MaptalksTilerPlugin {
   /**
    * Set up shader modification for hiding specific features
    * This function encapsulates the logic of hiding specific featureIds by modifying the material shader through onBeforeCompile
+   * @internal
    * @param material Three.js material object
    */
   _setupMaterial(mesh: Mesh) {
