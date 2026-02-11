@@ -17,12 +17,13 @@ import {
 
 import { TilesRenderer, Tile, TilesRendererEventMap } from "3d-tiles-renderer";
 
-interface Cached {
+interface EngineData {
   scene: Object3D;
 }
 
 interface TileEx extends Tile {
-  cached?: Cached;
+  cached?: EngineData;
+  engineData?: EngineData;
 }
 
 interface TilesRendererPlugin {
@@ -56,7 +57,9 @@ export class MaptalksTilerPlugin implements TilesRendererPlugin {
     tiles.traverse((tileObj) => {
       const tile = tileObj as Tile;
       const tileEx = tileObj as TileEx;
-      if (tileEx.cached?.scene) {
+      if (tileEx.engineData?.scene) {
+        this._onLoadModel(tileEx.engineData.scene, tile);
+      } else if (tileEx.cached?.scene) {
         this._onLoadModel(tileEx.cached.scene, tile);
       }
       return true;
